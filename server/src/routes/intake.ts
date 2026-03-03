@@ -1,16 +1,23 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { optionalAuth, AuthRequest } from "../middleware/auth";
 import { classifyIssue, generateActionPlan, analyzeIssueText } from "../services/ai";
 
 export const intakeRouter = Router();
 
 // ── Submit full intake → classify + generate plans ──
-intakeRouter.post("/submit", requireAuth, async (req: AuthRequest, res) => {
+intakeRouter.post("/submit", optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { category, subCategory, description, state, district, responses, language } = req.body;
     if (!category || !description || !state || !district) {
       return res.status(400).json({ error: "category, description, state, district are required" });
+    }
+
+    // Resolve userId: use real DB user if exists, otherwise null
+    let userId: string | null = null;
+    if (req.user?.id) {
+      const dbUser = await prisma.user.findUnique({ where: { id: req.user.id } });
+      if (dbUser) userId = dbUser.id;
     }
 
     // 1. AI classification
@@ -19,7 +26,7 @@ intakeRouter.post("/submit", requireAuth, async (req: AuthRequest, res) => {
     // 2. Save issue
     const issue = await prisma.legalIssue.create({
       data: {
-        userId: req.user!.id,
+        userId,
         category,
         subCategory: classification.subCategory || subCategory || null,
         description,

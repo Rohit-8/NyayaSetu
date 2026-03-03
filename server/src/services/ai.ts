@@ -1,7 +1,25 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "sk-placeholder" });
-const MODEL = "gpt-4o-mini";
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const MODEL = "gemini-2.5-flash";
+
+/** Robustly extract and parse JSON from AI response */
+function safeParseJSON(raw: string): any {
+  // Strip markdown fences
+  let s = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  // Try direct parse
+  try { return JSON.parse(s); } catch {}
+  // Try to extract first { ... } or [ ... ] block
+  const objMatch = s.match(/\{[\s\S]*\}/);
+  if (objMatch) {
+    try { return JSON.parse(objMatch[0]); } catch {}
+  }
+  const arrMatch = s.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try { return JSON.parse(arrMatch[0]); } catch {}
+  }
+  throw new Error(`Failed to parse JSON from AI response: ${s.slice(0, 200)}`);
+}
 
 // ─────────────────────────────────────────────
 //  TYPES
@@ -78,19 +96,14 @@ Guidelines:
 - Assess urgency based on potential harm, deadlines (e.g., FIR filing within 24h for serious crimes)`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "system", content: "You are a legal classification AI for Indian law. Always respond with valid JSON only." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 800,
+    const model = genAI.getGenerativeModel({ model: MODEL });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: "You are a legal classification AI for Indian law. Always respond with valid JSON only.\n\n" + prompt }] }],
+      generationConfig: { temperature: 0.3, maxOutputTokens: 800, responseMimeType: "application/json" },
     });
 
-    const text = completion.choices[0]?.message?.content || "{}";
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned);
+    const text = result.response.text() || "{}";
+    return safeParseJSON(text);
   } catch (err: any) {
     console.error("AI classification error:", err.message);
     return {
@@ -153,19 +166,14 @@ Guidelines:
 - Language: ${input.language === "hi" ? "Hindi" : "English"}`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "system", content: "You are a legal advisor AI for Indian law. Generate actionable, specific legal action plans. Respond with valid JSON only." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.4,
-      max_tokens: 3000,
+    const model = genAI.getGenerativeModel({ model: MODEL });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: "You are a legal advisor AI for Indian law. Generate actionable, specific legal action plans. Respond with valid JSON only.\n\n" + prompt }] }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: 3000, responseMimeType: "application/json" },
     });
 
-    const text = completion.choices[0]?.message?.content || "{}";
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned);
+    const text = result.response.text() || "{}";
+    return safeParseJSON(text);
   } catch (err: any) {
     console.error("AI plan generation error:", err.message);
     return buildFallbackPlan(input);
@@ -195,19 +203,14 @@ Analyze this and return JSON:
 Respond in ${language === "hi" ? "Hindi" : "English"}.`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "system", content: "You are a compassionate legal advisor AI for Indian citizens. Always respond with valid JSON." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.4,
-      max_tokens: 1200,
+    const model = genAI.getGenerativeModel({ model: MODEL });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: "You are a compassionate legal advisor AI for Indian citizens. Always respond with valid JSON.\n\n" + prompt }] }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: 1200, responseMimeType: "application/json" },
     });
 
-    const aiText = completion.choices[0]?.message?.content || "{}";
-    const cleaned = aiText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned);
+    const aiText = result.response.text() || "{}";
+    return safeParseJSON(aiText);
   } catch (err: any) {
     console.error("AI analysis error:", err.message);
     return {

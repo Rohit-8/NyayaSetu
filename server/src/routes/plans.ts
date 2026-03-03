@@ -1,15 +1,15 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { optionalAuth, AuthRequest } from "../middleware/auth";
 
 export const plansRouter = Router();
 
 // ── Get plans for an issue ───────────────────
-plansRouter.get("/issue/:issueId", requireAuth, async (req: AuthRequest, res) => {
+plansRouter.get("/issue/:issueId", optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { issueId } = req.params;
     const issue = await prisma.legalIssue.findFirst({
-      where: { id: issueId, userId: req.user!.id },
+      where: { id: issueId },
       include: {
         actionPlans: {
           include: { steps: { orderBy: { sequence: "asc" } } },
@@ -26,10 +26,10 @@ plansRouter.get("/issue/:issueId", requireAuth, async (req: AuthRequest, res) =>
 });
 
 // ── List all user issues ─────────────────────
-plansRouter.get("/my-issues", requireAuth, async (req: AuthRequest, res) => {
+plansRouter.get("/my-issues", optionalAuth, async (req: AuthRequest, res) => {
   try {
     const issues = await prisma.legalIssue.findMany({
-      where: { userId: req.user!.id },
+      where: req.user?.id ? { userId: req.user.id } : {},
       include: {
         actionPlans: {
           select: { id: true, planType: true, summary: true, status: true },
@@ -44,12 +44,11 @@ plansRouter.get("/my-issues", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── Get single plan detail ───────────────────
-plansRouter.get("/:planId", requireAuth, async (req: AuthRequest, res) => {
+plansRouter.get("/:planId", optionalAuth, async (req: AuthRequest, res) => {
   try {
     const plan = await prisma.actionPlan.findFirst({
       where: {
         id: req.params.planId,
-        issue: { userId: req.user!.id },
       },
       include: {
         steps: { orderBy: { sequence: "asc" } },
@@ -64,19 +63,17 @@ plansRouter.get("/:planId", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── Mark step completed / in-progress ────────
-plansRouter.patch("/step/:stepId", requireAuth, async (req: AuthRequest, res) => {
+plansRouter.patch("/step/:stepId", optionalAuth, async (req: AuthRequest, res) => {
   try {
     const { status } = req.body;
     if (!["PENDING", "IN_PROGRESS", "COMPLETED", "SKIPPED"].includes(status)) {
       return res.status(400).json({ error: "Invalid status" });
     }
 
-    // verify ownership
     const step = await prisma.actionStep.findUnique({
       where: { id: req.params.stepId },
-      include: { plan: { include: { issue: { select: { userId: true } } } } },
     });
-    if (!step || step.plan.issue.userId !== req.user!.id) {
+    if (!step) {
       return res.status(404).json({ error: "Step not found" });
     }
 

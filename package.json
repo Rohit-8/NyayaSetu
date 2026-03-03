@@ -1,0 +1,16 @@
+{
+  "name": "nyayasetu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NyayaSetu — AI-powered legal navigation platform for Indian citizens",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd server && npm run dev",
+    "dev:frontend": "cd client && npm run dev",
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "build": "cd server && npm run build && cd ../client && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}

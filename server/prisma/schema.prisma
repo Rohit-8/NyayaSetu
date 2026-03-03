@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════
+//  USER & AUTH
+// ═══════════════════════════════════════════
+
+model User {
+  id            String   @id @default(uuid())
+  phone         String?  @unique
+  email         String?  @unique
+  name          String?
+  passwordHash  String?
+  language      String   @default("hi")
+  state         String?
+  district      String?
+  pincode       String?
+  role          String   @default("FREE_USER")
+  isVerified    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  issues        LegalIssue[]
+  otps          OtpCode[]
+}
+
+model OtpCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════════════════════════
+//  LEGAL ISSUE TRACKING
+// ═══════════════════════════════════════════
+
+model LegalIssue {
+  id              String   @id @default(uuid())
+  userId          String
+  category        String
+  subCategory     String?
+  description     String
+  confidence      Float?
+  state           String?
+  district        String?
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  intakeResponses IntakeResponse[]
+  actionPlans     ActionPlan[]
+}
+
+model IntakeResponse {
+  id             String   @id @default(uuid())
+  issueId        String
+  questionId     String
+  questionText   String
+  responseText   String?
+  responseOption String?
+  sequence       Int
+  createdAt      DateTime @default(now())
+  issue          LegalIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════════════════════════
+//  ACTION PLANS
+// ═══════════════════════════════════════════
+
+model ActionPlan {
+  id        String   @id @default(uuid())
+  issueId   String
+  planType  String   // SHORT_TERM | LONG_TERM
+  summary   String
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue LegalIssue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  steps ActionStep[]
+}
+
+model ActionStep {
+  id              String   @id @default(uuid())
+  planId          String
+  sequence        Int
+  title           String
+  description     String
+  officeToVisit   String?
+  officeAddress   String?
+  documentsNeeded String[]
+  estimatedCost   String?
+  deadline        String?
+  legalReference  String?
+  status          String   @default("PENDING")
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  plan            ActionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════════════════════════
+//  LEGAL KNOWLEDGE BASE
+// ═══════════════════════════════════════════
+
+model LegalCategory {
+  id            String @id @default(uuid())
+  name          String @unique
+  nameHi        String
+  description   String
+  descriptionHi String
+  icon          String?
+  sortOrder     Int    @default(0)
+  isActive      Boolean @default(true)
+  createdAt     DateTime @default(now())
+
+  subCategories LegalSubCategory[]
+  questions     IntakeQuestion[]
+}
+
+model LegalSubCategory {
+  id              String   @id @default(uuid())
+  categoryId      String
+  name            String
+  nameHi          String
+  description     String
+  descriptionHi   String
+  applicableLaws  String[]
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  category  LegalCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  questions IntakeQuestion[]
+  rights    LegalRight[]
+}
+
+model IntakeQuestion {
+  id             String   @id @default(uuid())
+  categoryId     String
+  subCategoryId  String?
+  questionText   String
+  questionTextHi String
+  questionType   String   // SINGLE_CHOICE | MULTI_CHOICE | FREE_TEXT | YES_NO
+  options        String[]
+  optionsHi      String[]
+  sequence       Int
+  dependsOn      String?
+  dependsOnValue String?
+  isRequired     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  category    LegalCategory     @relation(fields: [categoryId], references: [id])
+  subCategory LegalSubCategory? @relation(fields: [subCategoryId], references: [id])
+}
+
+model LegalRight {
+  id              String   @id @default(uuid())
+  subCategoryId   String
+  title           String
+  titleHi         String
+  description     String
+  descriptionHi   String
+  applicableLaw   String
+  protections     String[]
+  protectionsHi   String[]
+  remedies        String[]
+  remediesHi      String[]
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  subCategory LegalSubCategory @relation(fields: [subCategoryId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════════════════════════
+//  DIRECTORY
+// ═══════════════════════════════════════════
+
+model GovernmentOffice {
+  id           String   @id @default(uuid())
+  name         String
+  nameHi       String
+  officeType   String
+  state        String
+  district     String
+  address      String
+  addressHi    String?
+  phone        String?
+  email        String?
+  latitude     Float?
+  longitude    Float?
+  officeHours  String?
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model EmergencyHelpline {
+  id            String  @id @default(uuid())
+  name          String
+  nameHi        String
+  number        String
+  description   String
+  descriptionHi String
+  category      String
+  isNational    Boolean @default(true)
+  state         String?
+  sortOrder     Int     @default(0)
+  createdAt     DateTime @default(now())
+}

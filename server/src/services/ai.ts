@@ -1,7 +1,13 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-2.5-flash-lite";
+
+/** Lazy-init so env vars are read at call time, not module load time */
+function getGenAI() {
+  const key = process.env.GEMINI_API_KEY || "";
+  if (!key) console.warn("WARNING: GEMINI_API_KEY is not set!");
+  return new GoogleGenerativeAI(key);
+}
 
 /** Robustly extract and parse JSON from AI response */
 function safeParseJSON(raw: string): any {
@@ -96,10 +102,10 @@ Guidelines:
 - Assess urgency based on potential harm, deadlines (e.g., FIR filing within 24h for serious crimes)`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: MODEL });
+    const model = getGenAI().getGenerativeModel({ model: MODEL });
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: "You are a legal classification AI for Indian law. Always respond with valid JSON only.\n\n" + prompt }] }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 800, responseMimeType: "application/json" },
+      generationConfig: { temperature: 0.3, maxOutputTokens: 9999, responseMimeType: "application/json" },
     });
 
     const text = result.response.text() || "{}";
@@ -166,10 +172,10 @@ Guidelines:
 - Language: ${input.language === "hi" ? "Hindi" : "English"}`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: MODEL });
+    const model = getGenAI().getGenerativeModel({ model: MODEL });
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: "You are a legal advisor AI for Indian law. Generate actionable, specific legal action plans. Respond with valid JSON only.\n\n" + prompt }] }],
-      generationConfig: { temperature: 0.4, maxOutputTokens: 3000, responseMimeType: "application/json" },
+      generationConfig: { temperature: 0.4, maxOutputTokens: 8192, responseMimeType: "application/json" },
     });
 
     const text = result.response.text() || "{}";
@@ -203,10 +209,10 @@ Analyze this and return JSON:
 Respond in ${language === "hi" ? "Hindi" : "English"}.`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: MODEL });
+    const model = getGenAI().getGenerativeModel({ model: MODEL });
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: "You are a compassionate legal advisor AI for Indian citizens. Always respond with valid JSON.\n\n" + prompt }] }],
-      generationConfig: { temperature: 0.4, maxOutputTokens: 1200, responseMimeType: "application/json" },
+      generationConfig: { temperature: 0.4, maxOutputTokens: 2048, responseMimeType: "application/json" },
     });
 
     const aiText = result.response.text() || "{}";
